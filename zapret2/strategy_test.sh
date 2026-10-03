@@ -77,7 +77,7 @@ echo "-----------------------------------------------------------------"
 check_http() {
     NAME="$1"
     URL="$2"
-    RES=$(curl -s -L -o /dev/null -w "%{http_code}|%{time_total}" --connect-timeout 3 --max-time 4 "$URL" 2>/dev/null)
+    RES=$(curl -s -L -o /dev/null -w "%{http_code}|%{time_total}" --connect-timeout 5 --max-time 6 "$URL" 2>/dev/null)
     CODE=$(echo "$RES" | tail -n 1 | cut -d'|' -f1)
     TIME=$(echo "$RES" | tail -n 1 | cut -d'|' -f2)
     
