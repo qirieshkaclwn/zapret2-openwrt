@@ -375,7 +375,7 @@ return view.extend({
         btn_reset.onclick   = L.bind(this.dialogResetCfg, this);
         layout_append(_('Reset settings to default'), null, [ btn_reset ] );
 
-        let btn_test        = create_btn('btn_test',  btn_style_success, _('Тест стратегии'));
+        let btn_test        = create_btn('btn_test',  btn_style_action, _('Тест стратегии'));
         btn_test.onclick    = ui.createHandlerFn(this, () => { diagnost.openDiagnostDialog(this.pkg_arch, true) });
 
         let btn_diag        = create_btn('btn_diag',  btn_style_action, _('Diagnostics'));

@@ -157,7 +157,7 @@ return baseclass.extend({
         this.btn_stratcheck = E('button', {
             'id': 'btn_stratcheck',
             'name': 'btn_stratcheck',
-            'class': btn_style_success,
+            'class': btn_style_action,
         }, _('Тест стратегии'));
         this.btn_stratcheck.onclick = ui.createHandlerFn(this, this.strategyCheck);
 
