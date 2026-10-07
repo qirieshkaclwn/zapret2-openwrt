@@ -3,7 +3,12 @@
 echo "================================================================="
 echo "          ZAPRET2: СТАТУС СТРАТЕГИИ И ТЕСТ ДОСТУПНОСТИ          "
 echo "================================================================="
-echo ""
+TMP_FILE="/tmp/strat_test_$$"
+cleanup() {
+    rm -f "$TMP_FILE"* 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
 
 # 1. СТАТУС СЛУЖБЫ
 PID=$(pgrep -f "nfqws2" | head -n 1)
@@ -67,11 +72,35 @@ if [ -n "$PHOTON_CONNS" ]; then
 else
     echo "  • Сессий Photon в текущий момент нет в conntrack"
 fi
+
+DISCORD_CONNS=$(awk '
+$1 ~ /^ipv[46]$/ && $3 == "udp" {
+    src = ""; dst = ""; dport = ""; pkts_out = 0; pkts_in = 0;
+    dir = 1;
+    for (i = 4; i <= NF; i++) {
+        if ($i ~ /^src=/ && src == "") { split($i, a, "="); src = a[2]; }
+        if ($i ~ /^dst=/ && dst == "") { split($i, a, "="); dst = a[2]; }
+        if ($i ~ /^dport=/ && dport == "") { split($i, a, "="); dport = a[2]; }
+        if ($i ~ /^packets=/) {
+            split($i, a, "=");
+            if (dir == 1) { pkts_out = a[2]; dir = 2; }
+            else { pkts_in = a[2]; }
+        }
+    }
+    dp = dport + 0;
+    if ((dp >= 19294 && dp <= 19344) || (dp >= 50000 && dp <= 65535)) {
+        printf "    -> %s -> %s:%s | Исх: %d пкт, Вх: %d пкт\n", src, dst, dport, pkts_out, pkts_in;
+    }
+}' /proc/net/nf_conntrack 2>/dev/null)
+if [ -n "$DISCORD_CONNS" ]; then
+    echo "  • Активные сессии Discord Voice (UDP):"
+    echo "$DISCORD_CONNS"
+fi
 echo ""
 
 # 4. ТЕСТ ДОСТУПНОСТИ РЕСУРСОВ
 echo "--- ПРОВЕРКА ДОСТУПНОСТИ СЕРВИСОВ И САЙТОВ ---"
-printf "%-32s %-10s %-12s %s\n" "Сервис" "Статус" "Время" "Код / Инфо"
+printf "%-38s %-16s %-17s %s\n" "Сервис" "Статус" "Время" "Код / Инфо"
 echo "-----------------------------------------------------------------"
 
 check_http() {
@@ -120,6 +149,53 @@ check_ping() {
     printf "%-32s %-10s %-12s %s\n" "$NAME" "$STATUS" "$TIME_MS" "$DETAILS"
 }
 
+check_discord_voice_udp() {
+    NAME="$1"
+    IP="$2"
+    PORT="$3"
+
+    { printf '\x00\x01\x00\x46\x00\x00\x30\x39'; head -c 66 /dev/zero 2>/dev/null; } | nc -u -w 1 "$IP" "$PORT" > "$TMP_FILE" 2>/dev/null
+
+    SIZE=$(wc -c < "$TMP_FILE" 2>/dev/null || echo 0)
+    if [ "$SIZE" -ge 70 ]; then
+        STATUS="[  OK  ]"
+        EXT_IP=$(tail -c +9 "$TMP_FILE" 2>/dev/null | tr -d '\0' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+        if [ -n "$EXT_IP" ]; then
+            DETAILS="UDP OK ($EXT_IP)"
+        else
+            DETAILS="UDP OK"
+        fi
+        TIME_MS="< 1s"
+    else
+        STATUS="[ FAIL ]"
+        DETAILS="Таймаут UDP (Блокировка)"
+        TIME_MS="--"
+    fi
+    printf "%-32s %-10s %-12s %s\n" "$NAME" "$STATUS" "$TIME_MS" "$DETAILS"
+    rm -f "$TMP_FILE" 2>/dev/null
+}
+
+check_stun() {
+    NAME="$1"
+    HOST="$2"
+    PORT="$3"
+
+    printf '\x00\x01\x00\x00\x21\x12\xa4\x42\x12\x34\x56\x78\x9a\xbc\xde\xf0\x12\x34\x56\x78' | nc -u -w 1 "$HOST" "$PORT" > "$TMP_FILE" 2>/dev/null
+
+    SIZE=$(wc -c < "$TMP_FILE" 2>/dev/null || echo 0)
+    if [ "$SIZE" -ge 20 ]; then
+        STATUS="[  OK  ]"
+        DETAILS="STUN OK (NAT)"
+        TIME_MS="< 1s"
+    else
+        STATUS="[ FAIL ]"
+        DETAILS="Таймаут STUN"
+        TIME_MS="--"
+    fi
+    printf "%-32s %-10s %-12s %s\n" "$NAME" "$STATUS" "$TIME_MS" "$DETAILS"
+    rm -f "$TMP_FILE" 2>/dev/null
+}
+
 # YouTube
 check_http "YouTube (Web)" "https://www.youtube.com"
 check_http "YouTube (Video CDN)" "https://redirector.googlevideo.com/report_mapping"
@@ -129,6 +205,10 @@ check_http "YouTube (Thumbnails)" "https://i.ytimg.com"
 check_http "Discord (Web)" "https://discord.com"
 check_http "Discord (Gateway)" "https://gateway.discord.gg"
 check_http "Discord (Avatars/CDN)" "https://cdn.discordapp.com/embed/avatars/0.png"
+check_discord_voice_udp "Discord Voice (Stockholm)" "104.29.136.169" 19316
+check_discord_voice_udp "Discord Voice (Frankfurt)" "104.29.138.136" 19335
+check_discord_voice_udp "Discord Voice (Warsaw)"    "104.29.140.10"  19310
+check_stun "WebRTC STUN (Google)" "stun.l.google.com" 19302
 
 # Игры и мультиплеер
 check_http "Unity Cloud Services" "https://services.api.unity.com"

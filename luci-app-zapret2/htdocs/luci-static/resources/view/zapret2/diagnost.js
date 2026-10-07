@@ -14,8 +14,9 @@ const btn_style_negative = 'btn cbi-button-reset important';
 const btn_style_warning  = 'btn cbi-button-negative';
 const btn_style_success  = 'btn cbi-button-success important';
 
-const fn_dwc_sh   = '/opt/'+tools.appName+'/dwc.sh';
-const fn_test_sh  = '/opt/'+tools.appName+'/strategy_test.sh';
+const fn_dwc_sh     = '/opt/'+tools.appName+'/dwc.sh';
+const fn_test_sh    = '/opt/'+tools.appName+'/strategy_test.sh';
+const fn_webrtc_sh  = '/opt/'+tools.appName+'/discord_webrtc_test.sh';
 
 return baseclass.extend({
     appendLog: function(msg, end = '\n')
@@ -24,18 +25,19 @@ return baseclass.extend({
         this.logArea.scrollTop = this.logArea.scrollHeight;
     },
 
-    setBtnMode: function(check1, check2, check3, cancel)
+    setBtnMode: function(check1, check2, check3, check4, cancel)
     {
         if (this.btn_stratcheck)  this.btn_stratcheck.disabled  = check1 ? false : true;
         if (this.btn_sitescheck)  this.btn_sitescheck.disabled  = check2 ? false : true;
         if (this.btn_dpicheck)    this.btn_dpicheck.disabled    = check3 ? false : true;
+        if (this.btn_webrtc)      this.btn_webrtc.disabled      = check4 ? false : true;
         if (this.btn_cancel)      this.btn_cancel.disabled      = cancel ? false : true;
     },
 
     strategyCheck: async function()
     {
         this._action = 'strategyCheck';
-        this.setBtnMode(0, 0, 0, 0);
+        this.setBtnMode(0, 0, 0, 0, 0);
         this.appendLog('Запуск тестирования стратегии и сервисов...');
         let cmd = [ fn_test_sh ];
         return tools.execAndRead({
@@ -47,10 +49,25 @@ return baseclass.extend({
         });
     },
 
+    webrtcCheck: async function()
+    {
+        this._action = 'webrtcCheck';
+        this.setBtnMode(0, 0, 0, 0, 0);
+        this.appendLog('Запуск проверки Discord Voice и WebRTC (UDP)...');
+        let cmd = [ fn_webrtc_sh ];
+        return tools.execAndRead({
+            cmd: cmd,
+            log: '/tmp/'+tools.appName+'_webrtc_test.log',
+            logArea: this.logArea,
+            callback: this.execAndReadCallback,
+            ctx: this,
+        });
+    },
+
     dpiCheck: async function()
     {
         this._action = 'dpiCheck';
-        this.setBtnMode(0, 0, 0, 0);
+        this.setBtnMode(0, 0, 0, 0, 0);
         this.appendLog('DPI check [tcp 16-20]...');
         this.appendLog('Original sources: https://github.com/hyperion-cs/dpi-checkers');
         this.appendLog('WEB-version: https://hyperion-cs.github.io/dpi-checkers/ru/tcp-16-20/');
@@ -72,7 +89,7 @@ return baseclass.extend({
     sitesCheck: async function()
     {
         this._action = 'sitesCheck';
-        this.setBtnMode(0, 0, 0, 0);
+        this.setBtnMode(0, 0, 0, 0, 0);
         this.appendLog('Sites check...');
         let cmd = [ fn_dwc_sh ];
         let resolve_dns = document.getElementById('cfg_resolve_dns');
@@ -92,7 +109,7 @@ return baseclass.extend({
 
     execAndReadCallback: function(rc, txt = '')
     {
-        this.setBtnMode(1, 1, 1, 1);
+        this.setBtnMode(1, 1, 1, 1, 1);
         if (rc == 0 && txt) {
             this.appendLog('=========================================================');
             return;
@@ -174,6 +191,13 @@ return baseclass.extend({
             'class': btn_style_action,
         }, _('Sites check'));
         this.btn_sitescheck.onclick = ui.createHandlerFn(this, this.sitesCheck);
+
+        this.btn_webrtc = E('button', {
+            'id': 'btn_webrtc',
+            'name': 'btn_webrtc',
+            'class': btn_style_action,
+        }, _('Discord Voice'));
+        this.btn_webrtc.onclick = ui.createHandlerFn(this, this.webrtcCheck);
         
         ui.showModal(_('Диагностика и тестирование стратегии'), [
             E('div', { 'class': 'cbi-section' }, [
@@ -188,6 +212,8 @@ return baseclass.extend({
                     this.btn_sitescheck,
                     ' ',
                     this.btn_dpicheck,
+                    ' ',
+                    this.btn_webrtc,
                 ]),
                 E('div', { 'class': 'right' }, [
                     ' ',
