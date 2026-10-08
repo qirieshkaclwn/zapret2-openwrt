@@ -145,6 +145,28 @@ end
 ffi.C.close(fd)
 print("FAIL|" .. dt)
 EOF
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 - "$mode" "$ip" "$port" "$timeout_ms" << 'EOF'
+import sys, socket, time
+mode, ip, port, timeout = sys.argv[1], sys.argv[2], int(sys.argv[3]), float(sys.argv[4]) / 1000.0
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(timeout)
+req = b'\x00\x01\x00\x46\x00\x00\x30\x39' + b'\x00'*66 if mode == "discord" else b'\x00\x01\x00\x00!\x12\xa4B\x124Vx\x9a\xbc\xde\xf0\x124Vx'
+t0 = time.time()
+try:
+    s.sendto(req, (ip, port))
+    data, _ = s.recvfrom(512)
+    dt = max(1, int((time.time() - t0) * 1000))
+    ext = ""
+    if mode == "discord" and len(data) >= 70:
+        ext = data[8:].split(b'\x00')[0].decode('ascii', errors='ignore').strip()
+    print(f"OK|{dt}|{ext}")
+except:
+    dt = max(1, int((time.time() - t0) * 1000))
+    print(f"FAIL|{dt}")
+finally:
+    s.close()
+EOF
     else
         local T_START=$(if [ -f /proc/uptime ]; then read -r up _ < /proc/uptime; awk "BEGIN {print int($up * 1000)}" 2>/dev/null || echo 0; else date +%s000 2>/dev/null || echo 0; fi)
         if [ "$mode" = "discord" ]; then
